@@ -1,0 +1,24 @@
+# DiscordCMS Configuration Template
+operators = [
+    "MAINT",
+    "TCPIPMAINT"
+]
+
+discord_guild = "YOUR_DISCORD_GUILD_ID"
+token = "YOUR_DISCORD_BOT_TOKEN_HERE"
+
+cms_user = "cms_username"
+cms_node = "cms_node_name"
+
+bot_user = "bot_username"
+bot_node = "bot_node_name"
+
+nje_recvieve_path = "/path/to/nje/receive"
+nje_send_path = "/path/to/nje/send"
+
+spool_directory = "/path/to/nje/spool/"
+
+loopback_port = 9599
+
+
+
