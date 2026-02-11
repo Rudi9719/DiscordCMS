@@ -1,0 +1,21 @@
+.cs 1 on
+DISCORD for PUBNET Users
+ 
+DISCORD is a GOPWIN Interface using the Go bridge (CMSBot) to communicate
+with discord users.
+ 
+ 
+  DISCORD (CLEAR   : To clear saved variables and 'start fresh'
+  DISCORD (N       : To start DISCORD with a screen height of 'N'
+ 
+.cs 1 off
+.cs 2 on
+ 
+To use from peer nodes, set your NAMES file to PUBVM(DISCORD)
+ 
+Important to Remember:
+ 
+There is an approx 8 second delay between making a request and the screen
+redrawing. Input messages are limited due to the size of RSCS Messages.
+The input enforces this limit.
+.cs 5 off
