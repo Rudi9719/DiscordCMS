@@ -15,7 +15,8 @@ End
 /* If we have GOPWIN, get saved variables */
 GW_ID = ''
 'GLOBALV GET DISCORD_LAST DISCORD_HT'
- 
+'CP SET IMSG OFF'
+
 /* Did user request a clear? */
 If opts = 'CLEAR' Then do
 Say 'Opts: 'opts
@@ -44,8 +45,11 @@ else do
 end
 /* Split main loop into Proc for clenliness */
 Call MainProc
+
 Say 'Goodbye!'
 ADDRESS COMMAND 'GOPWIN TERM GW_ID'
+'CP SET IMSG ON'
+ 
 Exit 0
  
 MainProc: procedure expose GW_ID. CTL. DISCORD_HT DISCORD_LAST
@@ -89,9 +93,7 @@ Parse var DHIST.1 ChanID '|' ChanName '|' MsgReq '|' PreparedTs
 Idx = 3
 StartIdx = DHIST.0 - (DISCORD_HT - 4)
 MsgCt = 0
-HIST_PAT.2 = '¦-----------------------------------------------------------------
- 
---------------'
+HIST_PAT.2 = '¦------------------------------------------------------------------------------'
  
 Do i=StartIdx to DHIST.0
  
@@ -111,15 +113,15 @@ HIST_PAT.1 = '¦ 'ChanName' History as of ¬'PreparedTs' ¦['MsgCt'/'MsgReq']'
  
 foot = DISCORD_HT - 1
 HIST_PAT.foot = '¦ User input (List, Quit, a Message, or blank to refresh)'
-HIST_PAT.DISCORD_HT = ' ¢                                                          '
+HIST_PAT.DISCORD_HT = ' ¢
+   '
  
  
 HIST_PAT.0 = DISCORD_HT
 ADDRESS COMMAND 'GOPWIN INIT GW_ID (FORCE'
-ADDRESS COMMAND 'GOPWIN DEFINE GW_ID MAIN_WIN HIST_PAT. CTL. (NOBORD LOC ABS 1 0
- 
- CUR uinput'
+ADDRESS COMMAND 'GOPWIN DEFINE GW_ID MAIN_WIN HIST_PAT. CTL. (NOBORD LOC ABS 1 0 CUR uinput'
 ADDRESS COMMAND 'GOPWIN DISPLAY GW_ID MAIN_WIN (FORCE'
+ 
 Return uinput
  
 /* --------------------------------------------------------------------------*/
@@ -176,9 +178,7 @@ If rc<>0 Then Call ErrorExit 'Failed to read DISCORD LI A'
 Parse var DLIST.1 Type '|' ChanCount '|' ListTime
 LIST_PAT.1='¦DISCORD CHANNELS (¬ 'STRIP(ChanCount)' ¦)'
 LIST_PAT.2='¦Updated: ¬' || ListTime
-LIST_PAT.3='¦-------------------------------------------------------------------
- 
-------------'
+LIST_PAT.3='¦-------------------------------------------------------------------------------'
 Idx = 4
 CIdx = 1
 ChanList.0 = ''
@@ -195,15 +195,14 @@ Do i=2 to DLIST.0 - 1
     LIST_PAT.Idx = ' ¬'ChanTopic
     Idx = Idx + 1
 End
+
 LIST_PAT.Idx = '¦Channel:¢                                                     '
- 
- 
 LIST_PAT.0 = Idx
+
 ADDRESS COMMAND 'GOPWIN INIT GW_ID (FORCE'
-ADDRESS COMMAND 'GOPWIN DEFINE GW_ID MAIN_WIN LIST_PAT. CTL. (NOBORD LOC ABS 1 0
- 
- CUR uinput'
+ADDRESS COMMAND 'GOPWIN DEFINE GW_ID MAIN_WIN LIST_PAT. CTL. (NOBORD LOC ABS 1 0 CUR uinput'
 ADDRESS COMMAND 'GOPWIN DISPLAY GW_ID MAIN_WIN (FORCE'
+
 target = ''
 Found = 0
 Do i=2 to DLIST.0 - 1
@@ -214,5 +213,6 @@ Do i=2 to DLIST.0 - 1
       Leave
     End
 End
+
 If ¬Found Then Call ErrorExit 'Channel not found in list.'
 Return target
