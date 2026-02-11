@@ -14,6 +14,7 @@ type Config struct {
 	NJESendPath    string   `toml:"nje_send_path"`
 	LoopbackPort   string   `toml:"loopback_port"`
 	DiscordGuild   string   `toml:"discord_guild"`
+	AnnounceChan   string   `toml:"announce_chan"`
 }
 
 // CMS input originates from users talking to VMSERVE

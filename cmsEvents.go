@@ -29,6 +29,8 @@ func (i *CMSInput) Dispatch(args *CMSInput, reply *string) error {
 		go History(args)
 	case "history":
 		go History(args)
+	case "a":
+		go Announce(args)
 	default:
 		return fmt.Errorf("Unknown command %s from %s(%s)", args.Command, args.Node, args.User)
 	}
@@ -38,6 +40,14 @@ func (i *CMSInput) Dispatch(args *CMSInput, reply *string) error {
 func Say(i *CMSInput) {
 	parts := strings.Split(i.Message, " ")
 	dg.ChannelMessageSend(parts[0], fmt.Sprintf("`%s(%s)` %s", i.Node, i.User, strings.Join(parts[1:], " ")))
+}
+
+func Announce(i *CMSInput) {
+	if i.User != config.CMSUser || i.Node != config.CMSNode {
+		log.Printf("Invalid attempt to use Announce by %s(%s)", i.Node, i.User)
+		return
+	}
+	dg.ChannelMessageSend(config.AnnounceChan, i.Message)
 }
 
 func List(i *CMSInput) {
@@ -85,7 +95,7 @@ func List(i *CMSInput) {
 }
 
 func History(i *CMSInput) {
-	maxLineLength := 76
+	maxLineLength := 77
 	count := 24
 	parts := strings.Split(i.Message, " ")
 	chanId := parts[0]
@@ -172,7 +182,7 @@ func History(i *CMSInput) {
 		if strings.Contains(content, i.User) {
 			content = strings.ReplaceAll(content, i.User, fmt.Sprintf("@%s@", i.User))
 		}
-		fline := fmt.Sprintf("M%s%s%s%s%s", message.Timestamp.Format("01/02 15:04"), separator, displayName, separator, content)
+		fline := fmt.Sprintf("M|%s%s%s%s%s", message.Timestamp.Format("01/02 15:04"), separator, displayName, separator, content)
 		remaining := []rune(fline)
 		chunkSize := maxLineLength
 		for len(remaining) > 0 {
