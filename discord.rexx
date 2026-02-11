@@ -16,6 +16,7 @@ End
 GW_ID = ''
 'GLOBALV GET DISCORD_LAST DISCORD_HT'
 'CP SET IMSG OFF'
+'CP SET MSG OFF'
 
 /* Did user request a clear? */
 If opts = 'CLEAR' Then do
@@ -49,6 +50,7 @@ Call MainProc
 Say 'Goodbye!'
 ADDRESS COMMAND 'GOPWIN TERM GW_ID'
 'CP SET IMSG ON'
+'CP SET MSG ON'
  
 Exit 0
  
