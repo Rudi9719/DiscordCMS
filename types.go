@@ -12,6 +12,7 @@ type Config struct {
 	SpoolDirectory string   `toml:"spool_directory"`
 	NJEReceivePath string   `toml:"nje_recvieve_path"`
 	NJESendPath    string   `toml:"nje_send_path"`
+	NJETellPath    string   `toml:"nje_tell_path"`
 	LoopbackPort   string   `toml:"loopback_port"`
 	DiscordGuild   string   `toml:"discord_guild"`
 	AnnounceChan   string   `toml:"announce_chan"`

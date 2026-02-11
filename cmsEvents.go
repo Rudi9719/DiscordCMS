@@ -32,6 +32,7 @@ func (i *CMSInput) Dispatch(args *CMSInput, reply *string) error {
 	case "a":
 		go Announce(args)
 	default:
+		go i.notifyUser(fmt.Sprintf("Unknown command %s", args.Command))
 		return fmt.Errorf("Unknown command %s from %s(%s)", args.Command, args.Node, args.User)
 	}
 	return nil
@@ -44,6 +45,7 @@ func Say(i *CMSInput) {
 
 func Announce(i *CMSInput) {
 	if i.User != config.CMSUser || i.Node != config.CMSNode {
+		go i.notifyUser("You are not permitted to use announce.")
 		log.Printf("Invalid attempt to use Announce by %s(%s)", i.Node, i.User)
 		return
 	}
@@ -54,17 +56,20 @@ func List(i *CMSInput) {
 	log.Println("Listing channels for", i.User, "at", i.Node)
 	chanlist, err := dg.GuildChannels(config.DiscordGuild)
 	if err != nil {
+		go i.notifyUser("Discord failed to respond to list command.")
 		log.Printf("%s(%s) failed List command [discord error]: %+v", i.Node, i.User, err)
 		return
 	}
 	f, err := os.CreateTemp("/tmp", fmt.Sprintf("%s_%s_%s_.*", i.Node, i.User, "chanlist"))
 	if err != nil {
-		log.Printf("%s(%s) failed History command [file error]: %+v", i.Node, i.User, err)
+		go i.notifyUser("Failed to prepare discord list.")
+		log.Printf("%s(%s) failed List command [file error]: %+v", i.Node, i.User, err)
 		return
 	}
 	w := bufio.NewWriter(f)
 	_, err = fmt.Fprintf(w, "%s%s%d%s%s\n", "LIST", separator, len(chanlist), separator, time.Now().Format("01/02 15:04"))
 	if err != nil {
+		go i.notifyUser("Failed to write discord list.")
 		log.Printf("%s(%s) failed List command [header writer error]: %+v", i.Node, i.User, err)
 		return
 	}
@@ -79,12 +84,14 @@ func List(i *CMSInput) {
 
 		_, err := fmt.Fprintf(w, "L%s%s%s%s%s%s\n", separator, dchan.Name, separator, dchan.ID, separator, cleanTopic)
 		if err != nil {
+			go i.notifyUser("Failed to write discord list.")
 			log.Printf("%s(%s) failed List command [writer error]: %+v", i.Node, i.User, err)
 			return
 		}
 	}
 	_, err = fmt.Fprintf(w, "%s%s%d%s%s\n", "LIST", separator, len(chanlist), separator, time.Now().Format("01/02 15:04"))
 	if err != nil {
+		go i.notifyUser("Failed to write discord list.")
 		log.Printf("%s(%s) failed List command [footer writer error]: %+v", i.Node, i.User, err)
 		return
 	}
@@ -101,6 +108,7 @@ func History(i *CMSInput) {
 	chanId := parts[0]
 
 	if len(parts) != 2 && len(parts) != 3 {
+		go i.notifyUser("Invalid arguments to History")
 		log.Printf("%s(%s) failed History command [invalid argc]: %s", i.Node, i.User, i.Message)
 		return
 	}
@@ -108,21 +116,25 @@ func History(i *CMSInput) {
 		count = ct + 1
 	}
 	if _, err := strconv.Atoi(chanId); err != nil {
+		go i.notifyUser(fmt.Sprintf("%s was not a channel ID.", chanId))
 		log.Printf("%s(%s) failed History command [not a channel ID]: %s", i.Node, i.User, i.Message)
 		return
 	}
 	curChan, err := dg.Channel(chanId)
 	if err != nil {
+		go i.notifyUser(fmt.Sprintf("%s was not a valid channel ID.", chanId))
 		log.Printf("%s(%s) failed History command [invalid channel ID]: %s", i.Node, i.User, i.Message)
 		return
 	}
 	messages, err := dg.ChannelMessages(chanId, count, "", "", "")
 	if err != nil {
+		go i.notifyUser("Discord failed to respond to History command.")
 		log.Printf("%s(%s) failed History command [discord error]: %s", i.Node, i.User, i.Message)
 		return
 	}
 	f, err := os.CreateTemp("/tmp", fmt.Sprintf("%s_%s_%s_hist.*", i.Node, i.User, parts[0]))
 	if err != nil {
+		go i.notifyUser("Failed to prepare discord history.")
 		log.Printf("%s(%s) failed History command [file error]: %s", i.Node, i.User, i.Message)
 		return
 	}
@@ -130,6 +142,7 @@ func History(i *CMSInput) {
 	var lines []string
 	_, err = fmt.Fprintf(w, "%s%s%s%s%d%s%s\n", chanId, separator, curChan.Name, separator, count, separator, time.Now().Format("01/02 15:04"))
 	if err != nil {
+		go i.notifyUser("Failed to write discord history.")
 		log.Printf("%s(%s) failed History command [header writer error]: %+v", i.Node, i.User, err)
 		return
 	}
@@ -198,12 +211,14 @@ func History(i *CMSInput) {
 	for _, line := range lines {
 		_, err := fmt.Fprintf(w, "%s\n", line)
 		if err != nil {
+			go i.notifyUser("Failed to write discord history.")
 			log.Printf("%s(%s) failed History command [writer error]: %s", i.Node, i.User, i.Message)
 			return
 		}
 	}
 	_, err = fmt.Fprintf(w, "%s%s%s%s%d%s%s\n", chanId, separator, curChan.Name, separator, count, separator, time.Now().Format("01/02 15:04"))
 	if err != nil {
+		go i.notifyUser("Failed to write discord history.")
 		log.Printf("%s(%s) failed History command [footer writer error]: %+v", i.Node, i.User, err)
 		return
 	}
@@ -218,6 +233,7 @@ func (i *CMSInput) sendRSCS(path string) {
 	cmd := exec.Command(config.NJESendPath, args...)
 	err := cmd.Run()
 	if err != nil {
+		go i.notifyUser("RSCS Send failed.")
 		log.Printf("%s(%s) failed RSCS Send: %+v", i.Node, i.User, err)
 	}
 	err = os.Remove(path)
@@ -225,4 +241,14 @@ func (i *CMSInput) sendRSCS(path string) {
 		log.Printf("Failed to Remove temp file:%s for %s(%s): %+v", path, i.Node, i.User, err)
 	}
 
+}
+
+func (i *CMSInput) notifyUser(message string) {
+	time.Sleep(11 * time.Second)
+	args := []string{"-u", strings.ToLower(config.BotUser), "-m", fmt.Sprintf("%s@%s", i.User, i.Node), message}
+	cmd := exec.Command(config.NJETellPath, args...)
+	err := cmd.Run()
+	if err != nil {
+		log.Printf("%s(%s) failed TELL Send: %+v", i.Node, i.User, err)
+	}
 }
