@@ -70,23 +70,27 @@ histFile = WaitForFile('DISCORD HIST')
 If rc<>0 Then Call ErrorExit 'Failed to read DISCORD HIST A'
 'ERASE DISCORD HIST A'
  
-Parse var DHIST.1 ChanID '|' ChanName '|' MsgCt '|' PreparedTs
-HIST_PAT.1 = '¦ 'ChanName' History as of ¬'PreparedTs' ¦['MsgCt']'
-HIST_PAT.2 = '¦-------------------------------------------------------------------------------'
+Parse var DHIST.1 ChanID '|' ChanName '|' MsgReq '|' PreparedTs
 Idx = 3
 StartIdx = DHIST.0 - (height - 4)
+MsgCt = 0
+HIST_PAT.2 = '¦-------------------------------------------------------------------------------'
+
 Do i=StartIdx to DHIST.0
 
      If POS('M|', DHIST.i) = 1 Then Do
          Parse var DHIST.i 'M|' MsgTs '|' MsgAuthor '|' Msg
-         HIST_PAT.Idx = '¬'MsgTs'^'MsgAuthor':±'STRIP(Msg, 'L')
+         HIST_PAT.Idx = ' ¬'MsgTs'^'MsgAuthor':±'STRIP(Msg, 'L')
+         MsgCt = MsgCt + 1
      End
      Else Do
-         HIST_PAT.Idx = '±-'DHIST.i
+         HIST_PAT.Idx = '± -'DHIST.i
      End
 
      Idx = Idx + 1
 End
+
+HIST_PAT.1 = '¦ 'ChanName' History as of ¬'PreparedTs' ¦['MsgCt'/'MsgReq']'
 
 foot = height - 1
 HIST_PAT.foot = '¦ User input (List, Quit, a Message, or blank to refresh)'
