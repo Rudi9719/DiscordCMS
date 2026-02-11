@@ -109,7 +109,7 @@ WaitForFile: Procedure
    Parse Arg TargetFn TargetFt
    Found = 0
    SpoolID = ''
-   Do 8
+   Do 5
       'DESBUF'
       'EXECIO * CP (STEM RDR. STRING QUERY RDR * ALL'
       Do r = 1 to RDR.0
@@ -121,7 +121,7 @@ WaitForFile: Procedure
       End
  
       If Found Then Leave
-      'CP SLEEP 1 SEC'
+      'CP SLEEP 2 SEC'
    End
  
    If ¬Found Then Call ErrorExit 'Timeout waiting for' TargetFn TargetFt
