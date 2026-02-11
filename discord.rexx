@@ -2,69 +2,84 @@
 /* --------------------------------------------------------------------------*/
 /* DISCORD EXEC - CMS Client for Discord Service                             */
 /* --------------------------------------------------------------------------*/
-Parse arg mode '('iheight
+Parse upper arg mode '('opts
 Trace Off
 Address Command
 Numeric Digits 20
- 
+/* Bail early if GOPWIN is not detected */
 'NUCEXT GOPWIN'
 If rc <> 0 Then Do
    'ESTATE GOPWIN MODULE *'
    If rc <> 0 Then Call ErrorExit 'GOPWIN MODULE not found.'
 End
-
+/* If we have GOPWIN, get saved variables */
+GW_ID = ''
+'GLOBALV GET DISCORD_LAST DISCORD_HT'
+ 
+/* Did user request a clear? */
+If opts = 'CLEAR' Then do
+Say 'Opts: 'opts
+DISCORD_LAST = ''
+DISCORD_HT = ''
+End
+ 
+/* Are saved variables garbage? */
+If ¬DATATYPE(DISCORD_HT,'W') Then DISCORD_HT=24
+If ¬DATATYPE(DISCORD_LAST,'W') Then DISCORD_LAST=''
+ 
+/* Shared GOPWIN Control pattern stem */
 CTL.0 = 5
 CTL.1 = '¦ FIELD PROT BLUE'
 CTL.2 = '¬ FIELD PROT GREEN'
 CTL.3 = '^ FIELD PROT WHITE'
 CTL.4 = '± FIELD PROT YELLOW'
 CTL.5 = '¢ FIELD NOPROT WHITE UND VARIABLE uinput'
-
-GW_ID = ''
-height=24
-
-if DATATYPE(iheight, 'W') Then do
-    height = iheight
+ 
+/* If opts are a Whole number they're the height */
+if DATATYPE(opts, 'W') Then do
+    DISCORD_HT = opts
+    'GLOBALV PUT DISCORD_HT'
     end
 else do
 end
-
+/* Split main loop into Proc for clenliness */
 Call MainProc
 Say 'Goodbye!'
 ADDRESS COMMAND 'GOPWIN TERM GW_ID'
 Exit 0
-
-MainProc: procedure expose height GW_ID. CTL.
+ 
+MainProc: procedure expose GW_ID. CTL. DISCORD_HT DISCORD_LAST
+If ¬DATATYPE(DISCORD_LAST,'W') Then DISCORD_LAST=ListChans()
 msg = ''
-initial = ListChans()
+'GLOBALV PUT DISCORD_LAST'
 Do while msg<>'QUIT'
-   msg = ReadHistory(initial)
+   msg = ReadHistory()
    Parse upper var msg msgUpper .
    select
       When STRIP(msg) = '' Then Iterate
       When msgUpper = 'QUIT' Then Leave
       When msgUpper = 'LIST' Then do
-         initial = Call ListChans()
-      End 
+         DISCORD_LAST = ListChans()
+         'GLOBALV PUT  DISCORD_LAST'
+      End
       otherwise do
-         'EXEC TELL DISCORD S 'initial' 'msg 
+         'EXEC TELL DISCORD S 'DISCORD_LAST' 'msg
       End
    End
 End
 Return
-
-/* --------------------------------------------------------------------------*/
-/* SUBROUTINE: ReadHistory                                                   */
-/* Tell DISCORD to give us the history for a particular channel.             */
-/* --------------------------------------------------------------------------*/
-ReadHistory: procedure expose CTL. GW_ID. height
-Parse arg target
-If target = '' Then Call ErrorExit 'No channel specified to ReadHistory.'
-'EXEC TELL DISCORD HIST 'target' 'height
+ 
+/* --------------------------------------------------------------------*/
+/* SUBROUTINE: ReadHistory                                             */
+/* Tell DISCORD to give us the history for a particular channel.       */
+/* --------------------------------------------------------------------*/
+ReadHistory: procedure expose CTL. GW_ID. DISCORD_HT DISCORD_LAST
+If DISCORD_LAST = '' Then Call ErrorExit 'No channel specified to ReadHistory.'
+'EXEC TELL DISCORD HIST 'DISCORD_LAST' 'DISCORD_HT
 uinput=''
-
-histFile = WaitForFile('DISCORD HIST') 
-
+ 
+histFile = WaitForFile('DISCORD HIST')
+ 
 'EXEC RECEIVE 'histFile' (REPLACE'
 'EXECIO * DISKR DISCORD HIST A (STEM DHIST. FINIS'
 If rc<>0 Then Call ErrorExit 'Failed to read DISCORD HIST A'
@@ -72,12 +87,14 @@ If rc<>0 Then Call ErrorExit 'Failed to read DISCORD HIST A'
  
 Parse var DHIST.1 ChanID '|' ChanName '|' MsgReq '|' PreparedTs
 Idx = 3
-StartIdx = DHIST.0 - (height - 4)
+StartIdx = DHIST.0 - (DISCORD_HT - 4)
 MsgCt = 0
-HIST_PAT.2 = '¦-------------------------------------------------------------------------------'
-
+HIST_PAT.2 = '¦-----------------------------------------------------------------
+ 
+--------------'
+ 
 Do i=StartIdx to DHIST.0
-
+ 
      If POS('M|', DHIST.i) = 1 Then Do
          Parse var DHIST.i 'M|' MsgTs '|' MsgAuthor '|' Msg
          HIST_PAT.Idx = ' ¬'MsgTs'^'MsgAuthor':±'STRIP(Msg, 'L')
@@ -86,18 +103,22 @@ Do i=StartIdx to DHIST.0
      Else Do
          HIST_PAT.Idx = '± -'DHIST.i
      End
-
+ 
      Idx = Idx + 1
 End
-
+ 
 HIST_PAT.1 = '¦ 'ChanName' History as of ¬'PreparedTs' ¦['MsgCt'/'MsgReq']'
-
-foot = height - 1
+ 
+foot = DISCORD_HT - 1
 HIST_PAT.foot = '¦ User input (List, Quit, a Message, or blank to refresh)'
-HIST_PAT.height = ' ¢                                                          '
-HIST_PAT.0 = height
+HIST_PAT.DISCORD_HT = ' ¢                                                          '
+ 
+ 
+HIST_PAT.0 = DISCORD_HT
 ADDRESS COMMAND 'GOPWIN INIT GW_ID (FORCE'
-ADDRESS COMMAND 'GOPWIN DEFINE GW_ID MAIN_WIN HIST_PAT. CTL. (NOBORD LOC ABS 1 0 CUR uinput'
+ADDRESS COMMAND 'GOPWIN DEFINE GW_ID MAIN_WIN HIST_PAT. CTL. (NOBORD LOC ABS 1 0
+ 
+ CUR uinput'
 ADDRESS COMMAND 'GOPWIN DISPLAY GW_ID MAIN_WIN (FORCE'
 Return uinput
  
@@ -109,7 +130,7 @@ WaitForFile: Procedure
    Parse Arg TargetFn TargetFt
    Found = 0
    SpoolID = ''
-   Do 5
+   Do 8
       'DESBUF'
       'EXECIO * CP (STEM RDR. STRING QUERY RDR * ALL'
       Do r = 1 to RDR.0
@@ -137,7 +158,7 @@ ErrorExit: Procedure
    Say 'ERROR:' Msg
    Exit 100
 Return
-
+ 
 /* --------------------------------------------------------------------------*/
 /* SUBROUTINE: ListChans                                                     */
 /* Tell DISCORD to give us the channel list.                                 */
@@ -151,11 +172,13 @@ uinput=''
 'EXECIO * DISKR DISCORD LI A (STEM DLIST. FINIS'
 If rc<>0 Then Call ErrorExit 'Failed to read DISCORD LI A'
 'ERASE DISCORD LI A'
-
+ 
 Parse var DLIST.1 Type '|' ChanCount '|' ListTime
 LIST_PAT.1='¦DISCORD CHANNELS (¬ 'STRIP(ChanCount)' ¦)'
 LIST_PAT.2='¦Updated: ¬' || ListTime
-LIST_PAT.3='¦-------------------------------------------------------------------------------'
+LIST_PAT.3='¦-------------------------------------------------------------------
+ 
+------------'
 Idx = 4
 CIdx = 1
 ChanList.0 = ''
@@ -173,9 +196,13 @@ Do i=2 to DLIST.0 - 1
     Idx = Idx + 1
 End
 LIST_PAT.Idx = '¦Channel:¢                                                     '
+ 
+ 
 LIST_PAT.0 = Idx
 ADDRESS COMMAND 'GOPWIN INIT GW_ID (FORCE'
-ADDRESS COMMAND 'GOPWIN DEFINE GW_ID MAIN_WIN LIST_PAT. CTL. (NOBORD LOC ABS 1 0 CUR uinput'
+ADDRESS COMMAND 'GOPWIN DEFINE GW_ID MAIN_WIN LIST_PAT. CTL. (NOBORD LOC ABS 1 0
+ 
+ CUR uinput'
 ADDRESS COMMAND 'GOPWIN DISPLAY GW_ID MAIN_WIN (FORCE'
 target = ''
 Found = 0
