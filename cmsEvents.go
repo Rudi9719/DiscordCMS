@@ -102,7 +102,7 @@ func List(i *CMSInput) {
 }
 
 func History(i *CMSInput) {
-	maxLineLength := 77
+	maxLineLength := 78
 	count := 24
 	parts := strings.Split(i.Message, " ")
 	chanId := parts[0]
@@ -166,7 +166,7 @@ func History(i *CMSInput) {
 		if len(message.Reactions) > 0 {
 			for _, r := range message.Reactions {
 				content = fmt.Sprintf("[+R(%s)] ", gomoji.ReplaceEmojisWithFunc(r.Emoji.Name, func(e gomoji.Emoji) string {
-					return e.UnicodeName
+					return e.Slug
 				})) + content
 			}
 		}
@@ -195,6 +195,9 @@ func History(i *CMSInput) {
 		if strings.Contains(content, i.User) {
 			content = strings.ReplaceAll(content, i.User, fmt.Sprintf("@%s@", i.User))
 		}
+		content = gomoji.ReplaceEmojisWithFunc(content, func(e gomoji.Emoji) string {
+			return ":" + e.Slug + ":"
+		})
 		fline := fmt.Sprintf("M|%s%s%s%s%s", message.Timestamp.Format("01/02 15:04"), separator, displayName, separator, content)
 		remaining := []rune(fline)
 		chunkSize := maxLineLength
