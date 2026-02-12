@@ -113,7 +113,7 @@ func History(i *CMSInput) {
 		return
 	}
 	if ct, err := strconv.Atoi(parts[1]); err == nil {
-		count = ct + 1
+		count = ct
 	}
 	if _, err := strconv.Atoi(chanId); err != nil {
 		go i.notifyUser(fmt.Sprintf("%s was not a channel ID.", chanId))

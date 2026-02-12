@@ -14,19 +14,18 @@ If rc <> 0 Then Do
 End
 /* If we have GOPWIN, get saved variables */
 GW_ID = ''
-'GLOBALV GET DISCORD_LAST DISCORD_HT'
+'GLOBALV GET DISCORD_LAST'
 'CP SET IMSG OFF'
 'CP SET MSG OFF'
  
 /* Did user request a clear? */
 If opts = 'CLEAR' Then do
-Say 'Opts: 'opts
 DISCORD_LAST = ''
-DISCORD_HT = ''
 End
+If mode = 'LIST' Then DISCORD_LAST=''
+If DATATYPE(mode,'W') Then DISCORD_LAST=mode
  
 /* Are saved variables garbage? */
-If ¬DATATYPE(DISCORD_HT,'W') Then DISCORD_HT=24
 If ¬DATATYPE(DISCORD_LAST,'W') Then DISCORD_LAST=''
  
 /* Shared GOPWIN Control pattern stem */
@@ -37,13 +36,18 @@ CTL.3 = '^ FIELD PROT WHITE'
 CTL.4 = '± FIELD PROT YELLOW'
 CTL.5 = '¢ FIELD NOPROT WHITE UND VARIABLE uinput'
  
+ 
+ADDRESS COMMAND 'GOPWIN INIT GW_ID (FORCE'
+ADDRESS COMMAND 'GOPWIN QUERY GW_ID (STEM GW_ID.'
+ADDRESS COMMAND 'GOPWIN TERM GW_ID'
+Parse var GW_ID.SIZE rows cols
+DISCORD_HT = rows
+If ¬DATATYPE(DISCORD_HT,'W') Then DISCORD_HT=10
+ 
 /* If opts are a Whole number they're the height */
-if DATATYPE(opts, 'W') Then do
-    DISCORD_HT = opts
-    'GLOBALV PUT DISCORD_HT'
-    end
-else do
-end
+if DATATYPE(opts, 'W') Then DISCORD_HT = opts
+ 
+ 
 /* Split main loop into Proc for clenliness */
 Call MainProc
  
@@ -79,7 +83,7 @@ Return
 /* --------------------------------------------------------------------*/
 ReadHistory: procedure expose CTL. GW_ID. DISCORD_HT DISCORD_LAST
 If DISCORD_LAST = '' Then Call ErrorExit 'No channel specified to ReadHistory.'
-'EXEC TELL DISCORD HIST 'DISCORD_LAST' 'DISCORD_HT
+'EXEC TELL DISCORD HIST 'DISCORD_LAST' 256'
 uinput=''
  
 histFile = WaitForFile('DISCORD HIST')
@@ -89,42 +93,67 @@ histFile = WaitForFile('DISCORD HIST')
 If rc<>0 Then Call ErrorExit 'Failed to read DISCORD HIST A'
 'ERASE DISCORD HIST A'
 'GLOBALV PUT DISCORD_LAST'
- 
+
 Parse var DHIST.1 ChanID '|' ChanName '|' MsgReq '|' PreparedTs
-Idx = 3
-StartIdx = DHIST.0 - (DISCORD_HT - 4)
-MsgCt = 0
-HIST_PAT.2 = '¦-----------------------------------------------------------------
--------------'
- 
-Do i=StartIdx to DHIST.0
- 
+HEAD_PAT.1 = '¦ 'ChanName' History as of ¬'PreparedTs' ¦[c'MsgReq'/h'DISCORD_HT']'
+HEAD_PAT.2 = '¦-------------------------------------------------------------------------------'
+HEAD_PAT.0 = 2
+
+FOOT_PAT.1 = '¦ User input (List, Quit, a Message, or blank to refresh)'
+FOOT_PAT.2 = ' ¢                                                                             '
+FOOT_PAT.0 = 2
+
+Idx = 1
+Do i=2 to DHIST.0 - 1
      If POS('M|', DHIST.i) = 1 Then Do
          Parse var DHIST.i 'M|' MsgTs '|' MsgAuthor '|' Msg
-         HIST_PAT.Idx = ' ¬'MsgTs'^'MsgAuthor':±'STRIP(Msg, 'L')
-         MsgCt = MsgCt + 1
+         BODY_PAT.Idx = ' ¬'MsgTs'^'MsgAuthor':±'STRIP(Msg, 'L')
      End
      Else Do
-         HIST_PAT.Idx = '± -'DHIST.i
+         BODY_PAT.Idx = '± 'DHIST.i
      End
- 
      Idx = Idx + 1
 End
- 
-HIST_PAT.1 = '¦ 'ChanName' History as of ¬'PreparedTs' ¦['MsgCt'/'MsgReq']'
- 
-foot = DISCORD_HT - 1
-HIST_PAT.foot = '¦ User input (List, Quit, a Message, or blank to refresh)'
-HIST_PAT.DISCORD_HT = ' ¢
-   '
- 
- 
-HIST_PAT.0 = DISCORD_HT
+BODY_PAT.0 = Idx - 1
+BodyHeight = DISCORD_HT - 4 
+If BodyHeight < 1 Then BodyHeight = 1
+ScrollRow = BODY_PAT.0 - BodyHeight + 1
+If ScrollRow < 1 Then ScrollRow = 1
+BodyStartRow = 3
+FootStartRow = DISCORD_HT - 1
+
 ADDRESS COMMAND 'GOPWIN INIT GW_ID (FORCE'
-ADDRESS COMMAND 'GOPWIN DEFINE GW_ID MAIN_WIN HIST_PAT. CTL. (NOBORD LOC ABS 1 0
- CUR uinput'
-ADDRESS COMMAND 'GOPWIN DISPLAY GW_ID MAIN_WIN (FORCE'
- 
+ADDRESS COMMAND 'GOPWIN DEFINE GW_ID HEAD_WIN HEAD_PAT. CTL. (NOBORD LOC ABS 1 0'
+ADDRESS COMMAND 'GOPWIN DEFINE GW_ID BODY_WIN BODY_PAT. CTL. (NOBORD LOC ABS 'BodyStartRow' 0 ASIZE 'BodyHeight' *'
+ADDRESS COMMAND 'GOPWIN DEFINE GW_ID FOOT_WIN FOOT_PAT. CTL. (NOBORD LOC ABS 'FootStartRow' 0 CUR uinput'
+
+ExitLoop = 0
+ADDRESS COMMAND 'GOPWIN CHANGE GW_ID BODY_WIN (AORIGIN 'ScrollRow' 1'
+
+Do Until ExitLoop = 1
+ADDRESS COMMAND 'GOPWIN DISPLAY GW_ID HEAD_WIN BODY_WIN FOOT_WIN (FORCE CUR FOOT_WIN'
+    
+    Select
+        When GOPWIN.PFK = 'PF7' Then Do
+            ScrollRow = ScrollRow - (BodyHeight - 1)
+            If ScrollRow < 1 Then ScrollRow = 1
+         ADDRESS COMMAND 'GOPWIN CHANGE GW_ID BODY_WIN (AORIGIN 'ScrollRow' 1'
+        End
+        When GOPWIN.PFK = 'PF8' Then Do
+            MaxRow = BODY_PAT.0 - BodyHeight + 1
+            If MaxRow < 1 Then MaxRow = 1
+            
+            ScrollRow = ScrollRow + (BodyHeight - 1)
+            If ScrollRow > MaxRow Then ScrollRow = MaxRow
+         ADDRESS COMMAND 'GOPWIN CHANGE GW_ID BODY_WIN (AORIGIN 'ScrollRow' 1'
+        End
+   When GOPWIN.PFK = 'PF3' | GOPWIN.PFK = 'PF15' | GOPWIN.PFK = 'ENTER' Then Do
+            ExitLoop = 1
+        End
+        
+        Otherwise NOP
+    End
+End
 Return uinput
  
 /* --------------------------------------------------------------------------*/
@@ -170,7 +199,7 @@ Return
 /* SUBROUTINE: ListChans                                                     */
 /* Tell DISCORD to give us the channel list.                                 */
 /* --------------------------------------------------------------------------*/
-ListChans: procedure expose CTL. GW_ID.
+ListChans: procedure expose CTL. GW_ID. DISCORD_HT
 Say 'Preparing DISCORD LIST please wait for network. . .'
 'EXEC TELL DISCORD LI'
 listFile = WaitForFile('DISCORD LI')
@@ -181,12 +210,14 @@ If rc<>0 Then Call ErrorExit 'Failed to read DISCORD LI A'
 'ERASE DISCORD LI A'
  
 Parse var DLIST.1 Type '|' ChanCount '|' ListTime
-LIST_PAT.1='¦DISCORD CHANNELS (¬ 'STRIP(ChanCount)' ¦)'
-LIST_PAT.2='¦Updated: ¬' || ListTime
-LIST_PAT.3='¦-------------------------------------------------------------------
-------------'
-Idx = 4
-CIdx = 1
+
+HEAD_PAT.1=' ¦DISCORD CHANNELS (¬ 'STRIP(ChanCount)' ¦)'
+HEAD_PAT.2=' ¦Updated: ¬' || ListTime
+HEAD_PAT.3=' ¦Channel:¢                                                        '
+HEAD_PAT.4=' ¦-----±PF7/8 to scroll up/down, PF3 to QUIT¦-------------------------------'
+HEAD_PAT.0 = 4
+
+Idx = 1
 ChanList.0 = ''
 Do i=2 to DLIST.0 - 1
     ChanTopic = ''
@@ -201,26 +232,63 @@ Do i=2 to DLIST.0 - 1
     LIST_PAT.Idx = ' ¬'ChanTopic
     Idx = Idx + 1
 End
- 
-LIST_PAT.Idx = '¦Channel:¢                                                     '
- 
-LIST_PAT.0 = Idx
+LIST_PAT.0 = Idx - 1
+ListHeight = DISCORD_HT - HEAD_PAT.0
+If LIST_PAT.0 < ListHeight Then ListHeight = LIST_PAT.0
+
+ScrollRow = 1
+ExitLoop = 0
  
 ADDRESS COMMAND 'GOPWIN INIT GW_ID (FORCE'
-ADDRESS COMMAND 'GOPWIN DEFINE GW_ID MAIN_WIN LIST_PAT. CTL. (NOBORD LOC ABS 1 0
- CUR uinput'
-ADDRESS COMMAND 'GOPWIN DISPLAY GW_ID MAIN_WIN (FORCE'
- 
+ADDRESS COMMAND 'GOPWIN DEFINE GW_ID HEAD_WIN HEAD_PAT. CTL. (NOBORD LOC ABS 1 0 CUR uinput'
+ADDRESS COMMAND 'GOPWIN DEFINE GW_ID LIST_WIN LIST_PAT. CTL. (NOBORD LOC ABS 5 0 ASIZE 'ListHeight' *'
+
+Do Until ExitLoop = 1
+    ADDRESS COMMAND 'GOPWIN DISPLAY GW_ID HEAD_WIN LIST_WIN (FORCE CUR HEAD_WIN'
+    
+    Select
+        When GOPWIN.PFK = 'PF7' Then Do
+            ScrollRow = ScrollRow - (ListHeight - 1)
+            If ScrollRow < 1 Then ScrollRow = 1
+         ADDRESS COMMAND 'GOPWIN CHANGE GW_ID LIST_WIN (AORIGIN 'ScrollRow' 1'
+        End
+
+        When GOPWIN.PFK = 'PF8' Then Do
+            MaxRow = LIST_PAT.0 - ListHeight + 1
+            If MaxRow < 1 Then MaxRow = 1
+            
+            ScrollRow = ScrollRow + (ListHeight - 1)
+            If ScrollRow > MaxRow Then ScrollRow = MaxRow
+            
+         ADDRESS COMMAND 'GOPWIN CHANGE GW_ID LIST_WIN (AORIGIN 'ScrollRow' 1'
+        End
+        When GOPWIN.PFK = 'PF3' | GOPWIN.PFK = 'PF15' Then Do
+            uinput = '' 
+            Call ErrorExit 'User requested exit'
+        End
+        When GOPWIN.PFK = 'ENTER' Then ExitLoop = 1
+        
+        Otherwise NOP
+    End
+end
+
 target = ''
 Found = 0
-Do i=2 to DLIST.0 - 1
-    Parse var DLIST.i 'L|'ChanName'|'ChanID'|'ChanTopic
-    If uinput = ChanName Then Do
-      target = ChanID
-      Found = 1
-      Leave
+
+If uinput <>'' Then Do
+   Parse upper var uinput check
+   If STRIP(check) = 'QUIT' then call ErrorExit 'User requested exit'
+    Do i=2 to DLIST.0 - 1
+        Parse upper var DLIST.i 'L|'ChanName'|'ChanID'|'ChanTopic
+        If check = ChanName Then Do
+          target = ChanID
+          Found = 1
+          Leave
+        End
     End
+    If ¬Found Then Call ErrorExit 'Channel not found in list.'
 End
- 
-If ¬Found Then Call ErrorExit 'Channel not found in list.'
+Else Do
+    target = '' 
+End
 Return target
